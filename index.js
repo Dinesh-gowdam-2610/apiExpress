@@ -1,70 +1,71 @@
 // Entry Point of the API Server
-const express = require('express');
-const { v4: uuidv4 } = require('uuid');
+const express = require("express");
 const app = express();
-const Pool = require('pg').Pool;
-const moment = require('moment');
-const router = express.Router();
-const tasks = require('./Tasks/performTask')
+const Pool = require("pg").Pool;
+const tasks = require("./Tasks/performTask");
+
+require("dotenv").config();
+const {
+  API_USER,
+  API_PASSWORD,
+  API_HOST,
+  API_DB,
+  API_PORT,
+  API_DEILECT,
+  DB_NAME,
+} = process.env;
 
 const pool = new Pool({
-  user: 'apiexpress',
-  host: 'dpg-cem2eg5a4991ihktm650-a.singapore-postgres.render.com',
-  database: 'apiexpress',
-  password: 'MwthgagVBBOrDn6pOvJLNqiEB9HfNq2D',
-  dialect: 'postgres',
-  port: 5432,
-  ssl: true
+  user: API_USER,
+  host: API_HOST,
+  database: API_DB,
+  password: API_PASSWORD,
+  dialect: API_DEILECT,
+  port: API_PORT,
 });
 
-const bodyParser = require('body-parser');
-app.use(bodyParser.json())
+const bodyParser = require("body-parser");
+app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-
 
 pool.connect((err, client, release) => {
   if (err) {
-    return console.error(
-      'Error acquiring client', err.stack)
+    return console.error("Error acquiring client", err.stack);
   }
-  client.query('SELECT NOW()', (err, result) => {
-    release()
+  client.query("SELECT NOW()", (err, result) => {
+    release();
     if (err) {
-      return console.error(
-        'Error executing query', err.stack)
+      return console.error("Error executing query", err.stack);
     }
-    console.log("Connected to Database !")
-  })
-})
-
-
+    console.log("Connected to Database !");
+  });
+});
 
 //GET ALL TASKS FROM DB
 const getAll = async () => {
-  app.get('/getAllTasks', async (req, res) => {
-    let getAllTask = await tasks.getAllTasks()
+  app.get("/getAllTasks", async (req, res) => {
+    let getAllTask = await tasks.getAllTasks();
     res.send(getAllTask);
   });
-}
-getAll()
-
+};
+getAll();
 
 //GET ALL ASSIGNED TASK
 const getAllAssignedTasks = () => {
-  app.get('/getAllAssignedTasks', async (req, res) => {
-    let assignedTasks = await tasks.getAllAssigned()
+  app.get("/getAllAssignedTasks", async (req, res) => {
+    let assignedTasks = await tasks.getAllAssigned();
     if (assignedTasks) {
-      res.send(assignedTasks)
+      res.send(assignedTasks);
     } else {
-      res.send({ status: false, message: "record Not Found" })
+      res.send({ status: false, message: "record Not Found" });
     }
   });
-}
-getAllAssignedTasks()
+};
+getAllAssignedTasks();
 
 //CREATE TASK TO THE DB
 async function createTask() {
-  app.post('/createTask', async (req, res) => {
+  app.post("/createTask", async (req, res) => {
     let {
       title,
       description,
@@ -72,8 +73,8 @@ async function createTask() {
       dateClosed,
       status,
       createdBy,
-      assignedTo
-    } = req.body
+      assignedTo,
+    } = req.body;
     let getCreatedTask = await tasks.createTask(
       title,
       description,
@@ -81,19 +82,20 @@ async function createTask() {
       dateClosed,
       status,
       createdBy,
-      assignedTo)
+      assignedTo
+    );
     if (getCreatedTask && getCreatedTask) {
-      res.send(getCreatedTask)
+      res.send(getCreatedTask);
     } else {
-      res.send({ status: "Failed", message: "Please Fill all the Details" })
+      res.send({ status: "Failed", message: "Please Fill all the Details" });
     }
   });
 }
-createTask()
+createTask();
 
 //UPDATE TASK BY USER ID
 const getUpdateTask = async () => {
-  app.put('/updateTask', async (req, res) => {
+  app.put("/updateTask", async (req, res) => {
     let {
       task_id,
       title,
@@ -102,8 +104,8 @@ const getUpdateTask = async () => {
       dateClosed,
       status,
       createdBy,
-      assignedTo
-    } = req.body
+      assignedTo,
+    } = req.body;
     let getUpdatedTaskResp = await tasks.updateTask(
       task_id,
       title,
@@ -113,111 +115,105 @@ const getUpdateTask = async () => {
       status,
       createdBy,
       assignedTo
-    )
-    res.send(getUpdatedTaskResp)
+    );
+    res.send(getUpdatedTaskResp);
   });
-}
-getUpdateTask()
+};
+getUpdateTask();
 
 //GET TASK BY ID
 const getTaskById = async () => {
   app.get("/task/:uid", async (req, res) => {
-    let {
-      uid
-    } = req.params;
-    let getTaskByIdDetails = await tasks.getTaskById(uid)
+    let { uid } = req.params;
+    let getTaskByIdDetails = await tasks.getTaskById(uid);
     // console.log(getTaskByIdDetails)
     res.send(getTaskByIdDetails);
-
-  })
-}
-getTaskById()
+  });
+};
+getTaskById();
 
 //DELETE TASK WITH SPECIFIC TASK ID
 async function deleteuserTask() {
   app.delete("/deleteTask/:uid", (req, res) => {
-    let {
-      uid
-    } = req.params;
+    let { uid } = req.params;
     if (uid) {
-      pool.query(`DELETE FROM createTasks where task_id=${uid}`, (err, result) => {
-        if (err) {
-          res.statusCode = 404
-          res.send({ status: false, message: "Record Not Found" })
-        } else {
-          if (uid) {
-            res.send({ status: true, message: `Successfully Deleted - ${uid}` });
-            return result.rows
+      pool.query(
+        `DELETE FROM ${DB_NAME} where task_id='${uid}'`,
+        (err, result) => {
+          if (err) {
+            res.statusCode = 404;
+            res.send({ status: false, message: "Record Not Found" });
           } else {
-            res.send({ status: true, message: "Please Provide the ID in the Params for Delete" });
+            if (uid) {
+              res.send({
+                status: true,
+                message: `Successfully Deleted - ${uid}`,
+              });
+              return result.rows;
+            } else {
+              res.send({
+                status: true,
+                message: "Please Provide the ID in the Params for Delete",
+              });
+            }
           }
         }
-      })
+      );
     } else {
-      res.send({ status: true, message: "Please Provide the ID in the Params for Delete" });
+      res.send({
+        status: true,
+        message: "Please Provide the ID in the Params for Delete",
+      });
     }
-  })
+  });
 }
-deleteuserTask()
+deleteuserTask();
 
 //UPDATE THE TASK
 async function updateTaskStatus() {
-  app.put('/task/:uid/accept', async (req, res) => {
-    let {
-      task_id,
-      status,
-    } = req.body
-    let { uid } = req.params
-    let getUpdateTaskData = await tasks.updateTaskStatus(status, uid)
-    res.send(getUpdateTaskData)
+  app.put("/task/:uid/accept", async (req, res) => {
+    let { task_id, status } = req.body;
+    let { uid } = req.params;
+    let getUpdateTaskData = await tasks.updateTaskStatus(status, uid);
+    res.send(getUpdateTaskData);
   });
 }
-updateTaskStatus()
+updateTaskStatus();
 
 //COMPLETE THE TASK
 async function updateTaskStatusComplete() {
-  app.put('/task/:uid/complete', async (req, res) => {
-    let {
-      status,
-    } = req.body
-    let {
-      uid
-    } = req.params
-    let getCompletionDetails = await tasks.updateTaskStatusComplete(uid, status)
-    res.send(getCompletionDetails)
+  app.put("/task/:uid/complete", async (req, res) => {
+    let { status } = req.body;
+    let { uid } = req.params;
+    let getCompletionDetails = await tasks.updateTaskStatusComplete(
+      uid,
+      status
+    );
+    res.send(getCompletionDetails);
   });
 }
-updateTaskStatusComplete()
+updateTaskStatusComplete();
 
 //CLOSE THE TASK
 async function updateTaskStatusClose() {
-  app.put('/task/:uid/close', async (req, res) => {
-    let {
-      task_id,
-      status,
-    } = req.body
-    let {
-      uid
-    } = req.params
-    console.log(req.params.uid)
-    let getUpdatedDetails = await tasks.updateTaskStatusClose(uid, status)
-    res.send(getUpdatedDetails)
+  app.put("/task/:uid/close", async (req, res) => {
+    let { task_id, status } = req.body;
+    let { uid } = req.params;
+    console.log(req.params.uid);
+    let getUpdatedDetails = await tasks.updateTaskStatusClose(uid, status);
+    res.send(getUpdatedDetails);
   });
 }
-updateTaskStatusClose()
-
+updateTaskStatusClose();
 
 async function taskAssingedToIndvidual() {
-  app.put('/task/:uid/assign/:mid', async (req, res) => {
-    let {
-      uid,
-      mid
-    } = req.params;
-    console.log(req.params)
-    let getIndividualData = await tasks.taskAssignedToIndividual(uid, mid)
-    res.send(getIndividualData)
+  app.put("/task/:uid/assign/:mid", async (req, res) => {
+    let { uid, mid } = req.params;
+    console.log(req.params);
+    let getIndividualData = await tasks.taskAssignedToIndividual(uid, mid);
+    res.send(getIndividualData);
   });
 }
-taskAssingedToIndvidual()
+taskAssingedToIndvidual();
 
-const server = app.listen(3000)
+const server = app.listen(3000);
