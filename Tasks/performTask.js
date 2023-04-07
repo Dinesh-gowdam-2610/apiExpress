@@ -1,5 +1,3 @@
-const express = require("express");
-const app = express();
 const Pool = require("pg").Pool;
 const moment = require("moment");
 
@@ -11,9 +9,9 @@ const {
   API_DB,
   API_PORT,
   API_DEILECT,
-  DB_NAME,
+  API_DB_NAME,
 } = process.env;
-
+console.log;
 const pool = new Pool({
   user: API_USER,
   host: API_HOST,
@@ -21,22 +19,28 @@ const pool = new Pool({
   password: API_PASSWORD,
   dialect: API_DEILECT,
   port: API_PORT,
+  // ssl: true,
 });
-const bodyParser = require("body-parser");
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
 
 async function getAllTasks() {
-  let getAllTasks = await pool.query(`SELECT * FROM ${DB_NAME}`);
-  if (getAllTasks && getAllTasks.rows) {
-    return getAllTasks.rows;
-  } else {
-    return "Record Not Found";
+  try {
+    let getAllTasks = await pool.query(`SELECT * FROM ${API_DB_NAME}`);
+    if (getAllTasks && getAllTasks.rows) {
+      return getAllTasks.rows;
+    } else {
+      return "Record Not Found";
+    }
+  } catch (err) {
+    console.log(err); // output to netlify function log
+    return {
+      statusCode: 500,
+      body: err.message, // Could be a custom message or object i.e. JSON.stringify(err)
+    };
   }
 }
 
 async function getAllAssigned() {
-  let getAllTasks = await pool.query(`SELECT * FROM ${DB_NAME}`);
+  let getAllTasks = await pool.query(`SELECT * FROM ${API_DB_NAME}`);
   let getAssignedTask = getAllTasks.rows.filter(
     (assign) => assign.status === "Assigned"
   );
@@ -79,18 +83,17 @@ async function createTask(
     createdBy !== "" &&
     assignedTo !== ""
   ) {
-    const insertQuery = `INSERT INTO ${DB_NAME}
+    const insertQuery = `INSERT INTO ${API_DB_NAME} 
     (task_id,title, description, datecompleted, dateclosed, status, createdby, assignedto, createddate) 
     VALUES(${task_id.replace(
       /,/g,
       ""
     )},'${title}','${description}','${dateCompleted}','${dateClosed}','${status}','${createdBy}','${assignedTo}','${createdDate}')`;
     let getTaskData = await pool.query(insertQuery);
-    console.log("getTaskData  DB ", getTaskData);
     if (getTaskData && getTaskData.rowCount === 1) {
       return {
         status: "Success",
-        message: "The Task has been Created Successfully",
+        message: "The Task has been Created Successfully - " + task_id,
       };
     } else {
       return { status: "Failed", message: "Please Fill all the Details" };
@@ -110,9 +113,10 @@ const updateTask = async (
   createdBy,
   assignedTo
 ) => {
+  if (task_id == undefined || task_id == null || task_id == "" || !task_id) {
+    return { message: "Please provide the task_id to update" };
+  }
   if (
-    task_id &&
-    task_id != "" &&
     title &&
     title !== "" &&
     description &&
@@ -123,16 +127,17 @@ const updateTask = async (
     createdBy !== "" &&
     assignedTo !== ""
   ) {
-    let getAllTasks = await pool.query(`SELECT * FROM ${DB_NAME}`);
+    let getAllTasks = await pool.query(`SELECT * FROM ${API_DB_NAME}`);
     let getTaskByTaskId = getAllTasks.rows.find(
       (task) => task.task_id === task_id
     );
+    console.log("getTaskByTaskId", getTaskByTaskId);
     if (Object.keys(getTaskByTaskId).length > 0) {
-      let updateTaskDetails =
-        await pool.query(`UPDATE ${DB_NAME} SET title = '${title}', description = '${description}', 
+      await pool.query(`UPDATE ${API_DB_NAME} SET title = '${title}', description = '${description}', 
         datecompleted = '${dateCompleted}', dateclosed = '${dateClosed}',
-        status = '${status}', createdby = '${createdBy}', assignedto = '${assignedTo}' 
-        WHERE task_id = ${getTaskByTaskId.task_id}`);
+        status = '${status}', createdby = '${createdBy}', assignedto = '${assignedTo}',
+        task_id = '${getTaskByTaskId.task_id}'
+        WHERE task_id = '${getTaskByTaskId.task_id}'`);
       return {
         status: true,
         message: `Details Updated for ID - ${getTaskByTaskId.task_id}`,
@@ -146,7 +151,7 @@ const updateTask = async (
 };
 const getTaskById = async (uid) => {
   let getTaskDetails = await pool.query(
-    `SELECT * FROM ${DB_NAME} where task_id='${uid}'`
+    `SELECT * FROM ${API_DB_NAME} where task_id= '${uid}'`
   );
   if (getTaskDetails && getTaskDetails.rows.length > 0) {
     return getTaskDetails.rows;
@@ -157,14 +162,13 @@ const getTaskById = async (uid) => {
 
 const updateTaskStatus = async (status, uid) => {
   if (uid && uid !== "" && status && status !== "") {
-    let getAllTasks = await pool.query(`SELECT * FROM ${DB_NAME}`);
+    let getAllTasks = await pool.query(`SELECT * FROM ${API_DB_NAME}`);
     let getTaskByTaskId = getAllTasks.rows.find(
-      (task) => task.task_id === Number(uid)
+      (task) => Number(task.task_id) === Number(uid)
     );
     if (Object.keys(getTaskByTaskId).length > 0) {
-      let updateTaskDetails =
-        await pool.query(`UPDATE ${DB_NAME} SET status = '${status.toUpperCase()}' 
-      WHERE task_id = ${getTaskByTaskId.task_id}`);
+      await pool.query(`UPDATE ${API_DB_NAME} SET status = '${status.toUpperCase()}' 
+      WHERE task_id = '${getTaskByTaskId.task_id}'`);
       return {
         status: true,
         message: `Status has been Updated from ${getTaskByTaskId.status} to  ${status}`,
@@ -182,14 +186,14 @@ const updateTaskStatusComplete = async (uid, status) => {
     (uid && uid !== "" && status && status === "Completed") ||
     status === "completed"
   ) {
-    let getAllTasks = await pool.query(`SELECT * FROM ${DB_NAME}`);
+    let getAllTasks = await pool.query(`SELECT * FROM ${API_DB_NAME}`);
     let getTaskByTaskId = getAllTasks.rows.find(
-      (task) => task.task_id === Number(uid)
+      (task) => Number(task.task_id) === Number(uid)
     );
     // let getTaskByTaskStatus = getAllTasks.rows.find(task => task.task_id === task_id);
     if (Object.keys(getTaskByTaskId).length > 0) {
       let updateTaskDetails =
-        await pool.query(`UPDATE ${DB_NAME} SET status = '${status.toUpperCase()}' 
+        await pool.query(`UPDATE ${API_DB_NAME} SET status = '${status.toUpperCase()}' 
           WHERE task_id = ${getTaskByTaskId.task_id}`);
       return {
         status: true,
@@ -209,13 +213,13 @@ const updateTaskStatusComplete = async (uid, status) => {
 const taskAssignedToIndividual = async (uid, mid) => {
   if (uid && uid !== "" && mid && mid !== "") {
     console.log(uid, mid);
-    let getAllTasks = await pool.query(`SELECT * FROM ${DB_NAME}`);
+    let getAllTasks = await pool.query(`SELECT * FROM ${API_DB_NAME}`);
     let getTaskByTaskId = getAllTasks.rows.find(
       (task) => task.task_id === Number(uid)
     );
     if (Object.keys(getTaskByTaskId).length > 0) {
       let updateTaskDetails =
-        await pool.query(`UPDATE ${DB_NAME} SET assignedto = '${mid.toUpperCase()}' 
+        await pool.query(`UPDATE ${API_DB_NAME} SET assignedto = '${mid.toUpperCase()}' 
           WHERE task_id = ${getTaskByTaskId.task_id}`);
       return {
         status: true,
@@ -233,14 +237,14 @@ const taskAssignedToIndividual = async (uid, mid) => {
 
 const updateTaskStatusClose = async (uid, status) => {
   if ((uid && uid !== "" && status && status == "Close") || status == "close") {
-    let getAllTasks = await pool.query(`SELECT * FROM ${DB_NAME}`);
+    let getAllTasks = await pool.query(`SELECT * FROM ${API_DB_NAME}`);
     let getTaskByTaskId = getAllTasks.rows.find(
       (task) => task.task_id === Number(uid)
     );
     // let getTaskByTaskStatus = getAllTasks.rows.find(task => task.task_id === task_id);
     if (Object.keys(getTaskByTaskId).length > 0) {
       let updateTaskDetails =
-        await pool.query(`UPDATE ${DB_NAME} SET status = '${status.toUpperCase()}' 
+        await pool.query(`UPDATE ${API_DB_NAME} SET status = '${status.toUpperCase()}' 
           WHERE task_id = ${getTaskByTaskId.task_id}`);
       return {
         status: true,
@@ -256,6 +260,35 @@ const updateTaskStatusClose = async (uid, status) => {
     };
   }
 };
+
+const deleteTaskById = async (task_id) => {
+  if (task_id) {
+    let getAllTasks = await pool.query(`SELECT * FROM ${API_DB_NAME}`);
+    let getTaskByTaskId = getAllTasks.rows.find(
+      (task) => Number(task.task_id) === Number(task_id)
+    );
+    if (
+      getAllTasks &&
+      getTaskByTaskId != undefined &&
+      Object.keys(getTaskByTaskId).length > 0
+    ) {
+      let rowResult = await pool.query(
+        `DELETE FROM ${API_DB_NAME} where task_id = '${task_id}'`
+      );
+      return rowResult.rowCount;
+    } else {
+      return {
+        status: true,
+        message: `Record not found for - ${task_id}`,
+      };
+    }
+  } else {
+    return {
+      status: true,
+      message: "Please Provide the ID in the Params for Delete",
+    };
+  }
+};
 module.exports = {
   getAllTasks,
   getAllAssigned,
@@ -266,4 +299,8 @@ module.exports = {
   updateTaskStatusComplete,
   taskAssignedToIndividual,
   updateTaskStatusClose,
+  deleteTaskById,
+};
+exports.handler = {
+  getAllTasks,
 };
