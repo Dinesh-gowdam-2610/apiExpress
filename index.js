@@ -127,36 +127,16 @@ getTaskById();
 
 //DELETE TASK WITH SPECIFIC TASK ID
 async function deleteuserTask() {
-  app.delete("/deleteTask/:uid", (req, res) => {
+  app.delete("/deleteTask/:uid", async (req, res) => {
     let { uid } = req.params;
-    if (uid) {
-      pool.query(
-        `DELETE FROM createTasks where task_id=${uid}`,
-        (err, result) => {
-          if (err) {
-            res.statusCode = 404;
-            res.send({ status: false, message: "Record Not Found" });
-          } else {
-            if (uid) {
-              res.send({
-                status: true,
-                message: `Successfully Deleted - ${uid}`,
-              });
-              return result.rows;
-            } else {
-              res.send({
-                status: true,
-                message: "Please Provide the ID in the Params for Delete",
-              });
-            }
-          }
-        }
-      );
-    } else {
+    let deletedData = await tasks.deleteTaskById(uid);
+    if (deletedData === 1) {
       res.send({
         status: true,
-        message: "Please Provide the ID in the Params for Delete",
+        message: `Deleted Successfully for - ${uid}`,
       });
+    } else {
+      res.send(deletedData);
     }
   });
 }
