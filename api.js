@@ -2,15 +2,27 @@
 const express = require("express");
 const app = express();
 const Pool = require("pg").Pool;
-const tasks = require("./Tasks/performTask");
+const tasks = require("../Tasks/performTask");
+const serverless = require("serverless-http");
+const router = express.Router();
+
 require("dotenv").config();
 
-const { API_USER, API_PASSWORD, API_HOST, API_DB, API_PORT, API_DEILECT } =
-  process.env;
+const {
+  API_USER,
+  API_PASSWORD,
+  API_HOST,
+  API_DB,
+  API_PORT,
+  API_DEILECT,
+  API_DB_NAME,
+  API_PROD_HOST,
+} = process.env;
 
 const pool = new Pool({
   user: API_USER,
   host: API_HOST,
+  // host: API_PROD_HOST,
   database: API_DB,
   password: API_PASSWORD,
   dialect: API_DEILECT,
@@ -32,6 +44,11 @@ pool.connect((err, client, release) => {
     }
     console.log("Connected to Database !");
   });
+});
+//sample to test the netlify
+
+router.get("/get", (req, res) => {
+  res.send("app is netlify");
 });
 
 //GET ALL TASKS FROM DB
@@ -119,7 +136,6 @@ const getTaskById = async () => {
   app.get("/task/:uid", async (req, res) => {
     let { uid } = req.params;
     let getTaskByIdDetails = await tasks.getTaskById(uid);
-    // console.log(getTaskByIdDetails)
     res.send(getTaskByIdDetails);
   });
 };
@@ -127,36 +143,16 @@ getTaskById();
 
 //DELETE TASK WITH SPECIFIC TASK ID
 async function deleteuserTask() {
-  app.delete("/deleteTask/:uid", (req, res) => {
+  app.delete("/deleteTask/:uid", async (req, res) => {
     let { uid } = req.params;
-    if (uid) {
-      pool.query(
-        `DELETE FROM createTasks where task_id=${uid}`,
-        (err, result) => {
-          if (err) {
-            res.statusCode = 404;
-            res.send({ status: false, message: "Record Not Found" });
-          } else {
-            if (uid) {
-              res.send({
-                status: true,
-                message: `Successfully Deleted - ${uid}`,
-              });
-              return result.rows;
-            } else {
-              res.send({
-                status: true,
-                message: "Please Provide the ID in the Params for Delete",
-              });
-            }
-          }
-        }
-      );
-    } else {
+    let deletedData = await tasks.deleteTaskById(uid);
+    if (deletedData === 1) {
       res.send({
         status: true,
-        message: "Please Provide the ID in the Params for Delete",
+        message: `Deleted Successfully for - ${uid}`,
       });
+    } else {
+      res.send(deletedData);
     }
   });
 }
@@ -165,7 +161,7 @@ deleteuserTask();
 //UPDATE THE TASK
 async function updateTaskStatus() {
   app.put("/task/:uid/accept", async (req, res) => {
-    let { task_id, status } = req.body;
+    let { status } = req.body;
     let { uid } = req.params;
     let getUpdateTaskData = await tasks.updateTaskStatus(status, uid);
     res.send(getUpdateTaskData);
@@ -210,3 +206,6 @@ async function taskAssingedToIndvidual() {
 taskAssingedToIndvidual();
 
 const server = app.listen(3000);
+app.use("/.netlify/functions/api", router);
+// module.exports = app;
+module.exports.handler = serverless(app);
