@@ -17,6 +17,7 @@ const pool = new Pool({
   ssl: true
 });
 
+
 const bodyParser = require('body-parser');
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({ extended: false }));
